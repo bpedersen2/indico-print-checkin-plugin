@@ -16,25 +16,18 @@
 
 from __future__ import unicode_literals, print_function
 
-from wtforms.fields.simple import TextField
-from wtforms.validators import DataRequired
+from flask import session
 
 from indico.core import signals
 from indico.core.logger import Logger
 from indico.core.plugins import IndicoPlugin, IndicoPluginBlueprint, url_for_plugin
 from indico.web.forms.base import FormDefaults, IndicoForm
+from indico.web.menu import SideMenuItem
 
 from indico_print_checkin import _
+from indico_print_checkin.blueprint import blueprint
+from indico_print_checkin.forms import EventSettingsForm
 
-WEBHOOK_DESC = """Provide an URL to be called as a webhook with the badge pdf
-as argument"""
-
-class EventSettingsForm(IndicoForm):
-    webhookurl = TextField(_('webhook-url'), [DataRequired()])
-
-    def __init__(self, *args, **kwargs):
-        super(EventSettingsForm, self).__init__(*args, **kwargs)
-        self.webhookurl.description = WEBHOOK_DESC + '\n'
 
 class PrintCheckinPlugin(IndicoPlugin):
     """Print on Checkin Plugin
@@ -47,17 +40,27 @@ class PrintCheckinPlugin(IndicoPlugin):
 
     def init(self):
         super(PrintCheckinPlugin, self).init()
+        self.connect(signals.menu.items, self.extend_event_management_menu,
+                     sender='event-management-sidemenu')
+
         self.connect(signals.event.registration.registration_checkin_updated,
                      self._handle_checkin)
 
+
     def _handle_checkin(self, registration, **kwargs):
         print('%r' % registration)
-
 
     @property
     def logo_url(self):
         return url_for_plugin(self.name + '.static', filename='images/logo.png')
 
     def get_blueprints(self):
-        return IndicoPluginBlueprint('print_checkin', __name__)
+        return blueprint
 
+    def extend_event_management_menu(self, sender, event, **kwargs):
+        if event.can_manage(session.user):
+            return SideMenuItem('BadgeOnCheckin', 'Bagde On Checkin', url_for_plugin('print_checkin.configure', event), section='services')
+
+    def get_event_management_url(self, event, **kwargs):
+        if event.can_manage(session.user):
+            return url_for_plugin('print_checkin.configure', event)
