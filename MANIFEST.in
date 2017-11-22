@@ -1,0 +1,5 @@
+graft indico_print_checkin/static
+graft indico_print_checkin/templates
+graft indico_print_checkin/translations
+
+global-exclude *.pyc __pycache__ .keep
