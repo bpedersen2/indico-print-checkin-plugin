@@ -14,20 +14,24 @@
 # You should have received a copy of the GNU General Public License
 # along with Indico; if not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import unicode_literals, print_function
+from __future__ import unicode_literals
 
+import requests
 from flask import session
 
 from indico.core import signals
+
 from indico.core.logger import Logger
-from indico.core.plugins import IndicoPlugin, IndicoPluginBlueprint, url_for_plugin
-from indico.web.forms.base import FormDefaults, IndicoForm
+from indico.core.plugins import IndicoPlugin, url_for_plugin
 from indico.web.menu import SideMenuItem
+from indico.modules.events.features.util import is_feature_enabled
+from indico.modules.events.registration.badges import RegistrantsListToBadgesPDF, RegistrantsListToBadgesPDFFoldable
 
-from indico_print_checkin import _
+
+from indico_print_checkin import _, print_checkin_event_settings
 from indico_print_checkin.blueprint import blueprint
-from indico_print_checkin.forms import EventSettingsForm
 
+logger = Logger.get('print_checkin')
 
 class PrintCheckinPlugin(IndicoPlugin):
     """Print on Checkin Plugin
@@ -35,8 +39,6 @@ class PrintCheckinPlugin(IndicoPlugin):
     Triggers a webhook with an registration badge.
     """
     configurable = True
-    event_settings_form = EventSettingsForm
-    default_event_settings = { 'webhookurl' : '' }
 
     def init(self):
         super(PrintCheckinPlugin, self).init()
@@ -48,7 +50,16 @@ class PrintCheckinPlugin(IndicoPlugin):
 
 
     def _handle_checkin(self, registration, **kwargs):
-        print('%r' % registration)
+        if is_feature_enabled(registration.event, 'print_checkin') and registration.checked_in:
+            try:
+                pdf = generate_ticket(registration)
+                webhookurl = print_checkin_event_settings.get(registration.event, 'webhookurl')
+                fname = 'print-' + str(registration.id) + '.pdf'
+                files = {'file': (fname, pdf, 'application/pdf', {'Expires': '0'})}
+                requests.post(webhookurl, files=files)
+            except Exception as e:
+                logger.warn(_('Could not print the checkin badge (%s)'), e)
+
 
     @property
     def logo_url(self):
@@ -59,8 +70,31 @@ class PrintCheckinPlugin(IndicoPlugin):
 
     def extend_event_management_menu(self, sender, event, **kwargs):
         if event.can_manage(session.user):
-            return SideMenuItem('BadgeOnCheckin', 'Bagde On Checkin', url_for_plugin('print_checkin.configure', event), section='services')
+            return SideMenuItem('BadgeOnCheckin', _('Bagde On Checkin Printing'),
+                                url_for_plugin('print_checkin.configure', event),
+                                section='services')
 
     def get_event_management_url(self, event, **kwargs):
         if event.can_manage(session.user):
             return url_for_plugin('print_checkin.configure', event)
+
+
+def generate_ticket(registration):
+    """Mostly copied from indico.module.events.registration.utils, but different ticket
+       template resolution
+    """
+
+    from indico.modules.designer.util import get_default_template_on_category
+    from indico.modules.events.registration.controllers.management.tickets import DEFAULT_TICKET_PRINTING_SETTINGS
+    # default is A4
+
+
+    template = print_checkin_event_settings.get(registration.event, 'ticket_template')
+    if not template:
+        template = (registration.registration_form.ticket_template or
+                    get_default_template_on_category(registration.event.category))
+
+    signals.event.designer.print_badge_template.send(template, regform=registration.registration_form)
+    pdf_class = RegistrantsListToBadgesPDFFoldable if template.backside_template else RegistrantsListToBadgesPDF
+    pdf = pdf_class(template, DEFAULT_TICKET_PRINTING_SETTINGS, registration.event, [registration.id])
+    return pdf.get_pdf()

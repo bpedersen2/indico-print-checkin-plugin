@@ -14,16 +14,31 @@
 # You should have received a copy of the GNU General Public License
 # along with Indico; if not, see <http://www.gnu.org/licenses/>.
 
-from wtforms.fields.simple import StringField
+from wtforms.fields import SelectField
 from wtforms.fields.html5 import URLField
-from wtforms.validators import DataRequired, URL
+from wtforms.validators import DataRequired
 
-from indico.web.forms.base import FormDefaults, IndicoForm
+from indico.web.forms.base import IndicoForm
+from indico.modules.designer import TemplateType
+from indico.modules.designer.util import get_default_template_on_category, get_inherited_templates
 
+from indico_print_checkin import _
 
 WEBHOOK_DESC = """Provide an URL to be called as a webhook with the badge pdf
 as argument"""
 
 class EventSettingsForm(IndicoForm):
     #event_specific_fields = ['webhookurl']
-    webhookurl = URLField(_('webhook-url'), [DataRequired(), URL()], description=WEBHOOK_DESC)
+    webhookurl = URLField(_('webhook-url'), [DataRequired()], description=WEBHOOK_DESC)
+    ticket_template_id = SelectField(_('Ticket template'), [DataRequired()], coerce=int)
+
+    def __init__(self, *args, **kwargs):
+        event = kwargs.pop('event')
+        super(EventSettingsForm, self).__init__(*args, **kwargs)
+        default_tpl = get_default_template_on_category(event.category)
+        all_templates = set(event.designer_templates) | get_inherited_templates(event)
+        badge_templates = [(tpl.id, tpl.title) for tpl in all_templates
+                           if tpl.type == TemplateType.badge and tpl != default_tpl]
+        # Show the default template first
+        badge_templates.insert(0, (default_tpl.id, '{} ({})'.format(default_tpl.title, _('Default category template'))))
+        self.ticket_template_id.choices = badge_templates

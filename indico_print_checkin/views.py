@@ -16,12 +16,10 @@
 
 from __future__ import unicode_literals
 
-from indico.core.plugins import IndicoPluginBlueprint
-
-from indico_print_checkin.controllers import RHPrintBadgeManageEvent
-
-blueprint = IndicoPluginBlueprint('print_checkin', 'print_checkin', url_prefix='/event/<confId>')
+from indico.core.plugins import WPJinjaMixinPlugin
+from indico.modules.events.management.views import WPEventManagement
 
 
-# Event management
-blueprint.add_url_rule('/manage/printbadge/', 'configure', RHPrintBadgeManageEvent, methods=('GET', 'POST'))
+
+class WPPrintCheckinEventMgmt(WPJinjaMixinPlugin, WPEventManagement):
+    sidemenu_option = 'BadgeOnCheckin'

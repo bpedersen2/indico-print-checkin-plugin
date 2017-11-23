@@ -16,14 +16,28 @@
 
 from __future__ import unicode_literals
 
-from flask import flash, jsonify, redirect, session
-from flask_pluginengine import current_plugin, render_plugin_template
+from flask import flash, redirect
 
 from indico.modules.events.management.controllers import RHManageEventBase
-from indico.web.util import jsonify_data, jsonify_template
+from indico.web.forms.base import FormDefaults
+from indico.web.flask.util import url_for
 
-
+from indico_print_checkin import _
 from indico_print_checkin.forms import EventSettingsForm
+from indico_print_checkin import print_checkin_event_settings
+from indico_print_checkin.views import WPPrintCheckinEventMgmt
+
 
 class RHPrintBadgeManageEvent(RHManageEventBase):
-    pass
+    EVENT_FEATURE = 'print_checkin'
+
+    def _process(self):
+        form = EventSettingsForm(prefix='print_checkin-', event=self.event,
+                                 obj=FormDefaults(**print_checkin_event_settings.get_all(self.event)))
+        if form.validate_on_submit():
+
+            print_checkin_event_settings.set_multi(self.event, form.data)
+            flash(_('Settings saved'), 'success')
+            return redirect(url_for('.configure', self.event))
+        return WPPrintCheckinEventMgmt.render_template('printbagdemanage.html', self.event,
+                                                       form=form)

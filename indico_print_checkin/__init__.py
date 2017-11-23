@@ -16,7 +16,36 @@
 
 from __future__ import unicode_literals
 
+from indico.modules.events.settings import EventSettingsProxy
 from indico.util.i18n import make_bound_gettext
+
+from indico.core import signals
+from indico.modules.events.features.base import EventFeature
 
 
 _ = make_bound_gettext('print_checkin')
+
+print_checkin_event_settings = EventSettingsProxy('print_checkin', {
+    'webhookurl': None,
+    'ticket_template_id': None,
+    'ticket_template': None,
+})
+
+
+@signals.event.get_feature_definitions.connect
+def _get_feature_definitions(sender, **kwargs):
+    return PrintCheckinFeature
+
+
+class PrintCheckinFeature(EventFeature):
+    name = 'print_checkin'
+    friendly_name = _('Print on Checkin')
+    requires = {'registration'}
+    description = _('Gives event managers the opportunity to print tickets on checkin.')
+
+    @classmethod
+    def enabled(cls, event):
+        for setting in ('webhookurl', 'ticket_template_id'):
+            if print_checkin_event_settings.get(event, setting) is None:
+                value = ''
+                print_checkin_event_settings.set(event, setting, value)
