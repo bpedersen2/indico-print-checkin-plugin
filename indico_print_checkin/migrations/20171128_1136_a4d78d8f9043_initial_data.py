@@ -1,8 +1,8 @@
-"""initial setup
+"""Initial data
 
-Revision ID: 6647712b949c
+Revision ID: a4d78d8f9043
 Revises: 
-Create Date: 2017-11-23 14:04:31.340647
+Create Date: 2017-11-28 11:36:50.290831
 """
 
 import sqlalchemy as sa
@@ -12,7 +12,7 @@ from sqlalchemy.sql.ddl import CreateSchema, DropSchema
 
 
 # revision identifiers, used by Alembic.
-revision = '6647712b949c'
+revision = 'a4d78d8f9043'
 down_revision = None
 branch_labels = None
 depends_on = None

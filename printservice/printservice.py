@@ -21,6 +21,14 @@ def upload_file():
         sendToPrinter(f)
     return 'success'
 
+@app.route('/json', methods=['GET', 'POST'])
+def upload_json():
+    if request.method == 'POST':
+        data = request.get_json()
+        print data
+    return 'success'
+
+
 def sendToPrinter(stream):
     try:
         printer = socket.socket()

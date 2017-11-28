@@ -23,7 +23,7 @@ from indico.modules.designer.models.templates import DesignerTemplate
 class PrintCheckin(db.Model):
     """Print on Checkin"""
     __tablename__ = 'print_checkin_settings'
-    __table_args__ = ({'schema': 'plugin_printcheckin'})
+    __table_args__ = ({'schema': 'plugin_print_checkin'})
 
     #: Entry ID
     id = db.Column(
@@ -59,3 +59,8 @@ class PrintCheckin(db.Model):
             lazy=True
         )
     )
+    #: Send data as json
+    send_json = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False)

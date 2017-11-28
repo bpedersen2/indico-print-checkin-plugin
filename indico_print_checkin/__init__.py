@@ -29,6 +29,7 @@ print_checkin_event_settings = EventSettingsProxy('print_checkin', {
     'webhookurl': None,
     'ticket_template_id': None,
     'ticket_template': None,
+    'send_json': False,
 })
 
 
@@ -45,7 +46,7 @@ class PrintCheckinFeature(EventFeature):
 
     @classmethod
     def enabled(cls, event):
-        for setting in ('webhookurl', 'ticket_template_id'):
+        for setting in ('webhookurl', 'ticket_template_id',):
             if print_checkin_event_settings.get(event, setting) is None:
                 value = ''
                 print_checkin_event_settings.set(event, setting, value)

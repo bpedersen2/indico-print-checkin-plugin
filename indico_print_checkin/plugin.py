@@ -17,7 +17,8 @@
 from __future__ import unicode_literals
 
 import requests
-from flask import session
+from flask import json, session
+from sqlalchemy.orm import joinedload
 
 from indico.core import signals
 
@@ -26,6 +27,9 @@ from indico.core.plugins import IndicoPlugin, url_for_plugin
 from indico.web.menu import SideMenuItem
 from indico.modules.events.features.util import is_feature_enabled
 from indico.modules.events.registration.badges import RegistrantsListToBadgesPDF, RegistrantsListToBadgesPDFFoldable
+from indico.modules.events.registration.util import build_registration_api_data, get_event_section_data
+from indico.util.string import slugify
+
 
 
 from indico_print_checkin import _, print_checkin_event_settings
@@ -48,18 +52,57 @@ class PrintCheckinPlugin(IndicoPlugin):
         self.connect(signals.event.registration.registration_checkin_updated,
                      self._handle_checkin)
 
+    def _mode(self, registration):
+        if print_checkin_event_settings.get(registration.event, 'send_json'):
+            return 'json'
+        return 'pdf'
+
+    def _wh_url(self, registration):
+        return print_checkin_event_settings.get(registration.event, 'webhookurl')
+
+    def _send_json(self, registration):
+        try:
+            event=registration.event
+            fullreg = (event.registrations
+                       .filter_by(id=registration.id,
+                                  is_deleted=False)
+                       .options(joinedload('data').joinedload('field_data'))
+                       .first_or_404())
+            data = self.build_registration_data(fullreg)
+            requests.post(self._wh_url(registration), data = json.dumps(data),
+                          headers= {'Content-Type': 'application/json'})
+        except Exception as e:
+            logger.warn(_('Could not send data (%s)'), e)
+
+    def build_registration_data(self, reg):
+        data = build_registration_api_data(reg)
+        data['data_by_id'] = {}
+        data['data_by_name'] = {}
+        for field_id, item in reg.data_by_field.iteritems():
+            data['data_by_id'][field_id] = item.friendly_data
+        for item in reg.data:
+            fieldname = slugify(item.field_data.field.title)
+            fieldparent = slugify(item.field_data.field.parent.title)
+            data['data_by_name']['{}_{}'.format(fieldparent, fieldname)] = item.friendly_data
+        return data
+
+    def send_pdf(self, registration):
+        try:
+
+            fname = 'print-' + str(registration.id) + '.pdf'
+            files = {'file': (fname, pdf, 'application/pdf', {'Expires': '0'})}
+            pdf = generate_ticket(registration)
+            requests.post(self._wh_url(registration), files=files)
+        except Exception as e:
+            logger.warn(_('Could not print the checkin badge (%s)'), e)
 
     def _handle_checkin(self, registration, **kwargs):
         if is_feature_enabled(registration.event, 'print_checkin') and registration.checked_in:
-            try:
-                pdf = generate_ticket(registration)
-                webhookurl = print_checkin_event_settings.get(registration.event, 'webhookurl')
-                fname = 'print-' + str(registration.id) + '.pdf'
-                files = {'file': (fname, pdf, 'application/pdf', {'Expires': '0'})}
-                requests.post(webhookurl, files=files)
-            except Exception as e:
-                logger.warn(_('Could not print the checkin badge (%s)'), e)
-
+            mode = self._mode(registration)
+            if self._mode(registration) == 'json':
+                self._send_json(registration)
+            elif mode == 'pdf':
+                self._send_pdf(registration)
 
     @property
     def logo_url(self):

@@ -14,13 +14,14 @@
 # You should have received a copy of the GNU General Public License
 # along with Indico; if not, see <http://www.gnu.org/licenses/>.
 
-from wtforms.fields import SelectField
+from wtforms.fields import BooleanField, SelectField
 from wtforms.fields.html5 import URLField
 from wtforms.validators import DataRequired
 
 from indico.web.forms.base import IndicoForm
 from indico.modules.designer import TemplateType
 from indico.modules.designer.util import get_default_template_on_category, get_inherited_templates
+from indico.web.forms.widgets import SwitchWidget
 
 from indico_print_checkin import _
 
@@ -31,6 +32,8 @@ class EventSettingsForm(IndicoForm):
     #event_specific_fields = ['webhookurl']
     webhookurl = URLField(_('webhook-url'), [DataRequired()], description=WEBHOOK_DESC)
     ticket_template_id = SelectField(_('Ticket template'), [DataRequired()], coerce=int)
+    send_json =  BooleanField(_('Send data as JSON'), widget=SwitchWidget())
+
 
     def __init__(self, *args, **kwargs):
         event = kwargs.pop('event')
